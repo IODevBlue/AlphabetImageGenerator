@@ -1,0 +1,184 @@
+plugins {
+    id 'com.android.library'
+    id 'org.jetbrains.kotlin.android'
+    id 'org.jetbrains.dokka'
+    id 'signing'
+    id 'maven-publish'
+}
+
+def releaseVersion = '1.2.0-SNAPSHOT'
+def moduleID = 'alphabetbitmapgenerator'
+
+android {
+    compileSdk 35
+    namespace 'com.blueiobase.api.android.alphabetbitmapgenerator'
+
+    defaultConfig {
+        minSdk 21
+        targetSdk 35
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+}
+
+kotlin {
+    jvmToolchain(17)
+}
+
+
+afterEvaluate {
+    publishing {
+        publications {
+            maven(MavenPublication) {
+                groupId = 'io.github.iodevblue'
+                artifactId = 'alphabetbitmapgenerator'
+                version = releaseVersion
+                from components.release
+                artifact androidJavadocJar
+                artifact androidSourcesJar
+                artifact androidJar
+                pom {
+                    name = "$rootProject.name"
+                    description = 'AlphabetBitmapGenerator'
+                    url = 'https://github.com/IODevBlue/AlphabetBitmapGenerator.git'
+                    packaging = 'jar'
+
+                    licenses {
+                        license {
+                            name = 'Apache License Version 2.0'
+                            url = 'http://www.apache.org/licenses/LICENSE-2.0'
+                        }
+                    }
+
+                    developers {
+                        developer {
+                            id = 'iodevblue'
+                            name = 'IO DevBlue'
+                            email = 'iodevblue@gmail.com'
+                        }
+                    }
+
+                    scm {
+                        connection = 'scm:git:git://github.com/IODevBlue/AlphabetBitmapGenerator.git'
+                        developerConnection = 'scm:git:ssh://github.com/IODevBlue/AlphabetBitmapGenerator.git'
+                        url = 'https://github.com/IODevBlue/AlphabetBitmapGenerator'
+                    }
+                }
+            }
+        }
+
+        repositories {
+            def releaseUrl = "https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/"
+            def snapshotUrl = "https://s01.oss.sonatype.org/content/repositories/snapshots/"
+            maven {
+                credentials {
+                    username = sonatypeUsername
+                    password = sonatypePassword
+                }
+                url = uri(releaseVersion.endsWith('SNAPSHOT')? snapshotUrl:releaseUrl)
+            }
+        }
+
+    }
+
+    signing {
+        sign publishing.publications.maven
+    }
+}
+
+
+dokkaHtml {
+    moduleName.set(rootProject.name)
+    suppressInheritedMembers.set(true)
+    offlineMode.set(true)
+    dokkaSourceSets {
+        configureEach {
+            includes.from("module.md")
+        }
+    }
+}
+
+dokkaJavadoc {
+    moduleName.set(rootProject.name)
+    suppressInheritedMembers.set(true)
+    offlineMode.set(true)
+    dokkaSourceSets {
+        configureEach {
+            includes.from("module.md")
+        }
+    }
+}
+
+tasks.register('androidSourcesJar', Jar) {
+    getArchiveClassifier().set('sources')
+    from android.sourceSets.main.kotlin.srcDirs
+    doLast {
+        copy {
+            from androidSourcesJar
+            rename("$moduleID" + "-sources.jar", "$moduleID-$releaseVersion" + "-sources.jar")
+            into "$rootProject.projectDir/artefacts/$moduleID/$releaseVersion"
+        }
+    }
+}
+
+tasks.register('androidJavadocJar', Jar) {
+    dependsOn dokkaJavadoc
+    getArchiveClassifier().set('javadoc')
+    from dokkaJavadoc
+    doLast {
+        copy {
+            from androidJavadocJar
+            rename("$moduleID" + "-javadoc.jar", "$moduleID-$releaseVersion" + "-javadoc.jar")
+            into "$rootProject.projectDir/artefacts/$moduleID/$releaseVersion"
+        }
+    }
+}
+
+tasks.register('androidJar', Jar) {
+    def path = "build/intermediates/full_jar/release/full.jar"
+    def file = getRootProject().project("$moduleID").file(new File(path))
+    if (!file.exists()) {
+        println("ERROR: $moduleID:- Run the createFullJarRelease task first to create the jar file.")
+        return
+    }
+    from zipTree(file)
+    doLast {
+        copy {
+            from androidJar
+            rename("$moduleID" + ".jar", "$moduleID-$releaseVersion" + ".jar")
+            into "$rootProject.projectDir/artefacts/$moduleID/$releaseVersion"
+        }
+    }
+}
+
+tasks.register('copyHtmlDoc', Copy) {
+    dependsOn dokkaHtml
+    from "build/dokka/html"
+    into "/Users/iodevblue/Documents/Github-Projects/project-docs/api/android/$moduleID/html"
+}
+
+tasks.register('copyJavadoc', Copy) {
+    dependsOn dokkaJavadoc
+    from "build/dokka/javadoc"
+    into "/Users/iodevblue/Documents/Github-Projects/project-docs/api/android/$moduleID/javadoc"
+}
+
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation 'androidx.drawerlayout:drawerlayout:1.2.0'
+    implementation 'androidx.core:core-ktx:1.13.1'
+    implementation 'androidx.appcompat:appcompat:1.7.0'
+    implementation 'androidx.customview:customview:1.1.0'
+}
